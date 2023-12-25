@@ -24,7 +24,7 @@ Two shapes, and only two:
 
 | Shape | When |
 |---|---|
-| `{"errors": ["message"]}` | 400, 403, 404, 500 — a message fit to show a user |
+| `{"errors": ["message"]}` | 400, 403, 404, 429, 500 — a message fit to show a user |
 | `{"attributes_errors": {"field": ["message"]}}` | 422 — per-field validation failures |
 
 The Devise endpoints predate this convention and keep their own shape, because
@@ -41,8 +41,8 @@ the client parses them:
 | Method | Path | Auth | Success | Notes |
 |---|---|---|---|---|
 | `GET` | `/up` | no | 200 | Health probe; touches the database |
-| `POST` | `/signup` | no | 200 | Body `{"user":{"name","email","password"}}` |
-| `POST` | `/login` | no | 200 | Body `{"user":{"email","password"}}`; token in the `Authorization` header |
+| `POST` | `/signup` | no | 200 | Body `{"user":{"name","email","password"}}`; 429 after 10 attempts per IP in 3 minutes |
+| `POST` | `/login` | no | 200 | Body `{"user":{"email","password"}}`; token in the `Authorization` header; 429 after 10 attempts per IP in 3 minutes |
 | `DELETE` | `/logout` | bearer | 200 | Revokes the token |
 | `GET` | `/api/v1/events` | bearer | 200 `[Event]` | Events the caller **organizes** |
 | `POST` | `/api/v1/events` | bearer | 201 `Event` | Body `{"event":{…}}`; `organizer_id` is always the caller |

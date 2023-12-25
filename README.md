@@ -236,7 +236,9 @@ event on every list page.
 - **No capacity, no waitlist.** `events` has no seat-count column, so a booking is never
   refused for being full. The only two domain refusals are the ones above.
 - **No refresh tokens.** A JWT lives eight hours, then you log in again — no rotation,
-  no sliding expiry. No rate limiting on `/login` or `/signup` either.
+  no sliding expiry. `/login` and `/signup` are throttled to 10 attempts per IP per
+  3 minutes (429 after that), with counters held in process memory, so the limit is
+  per API process rather than global.
 - **Offset pagination**, capped at 100 rows, default 50, reported in `X-Total-Count` /
   `X-Page` / `X-Per-Page`. A deep page still makes PostgreSQL count past the offset.
   `event_management_FE` does send `page` and `per_page` (`src/services/eventService.js:60`,

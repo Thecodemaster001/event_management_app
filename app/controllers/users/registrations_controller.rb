@@ -4,6 +4,7 @@ module Users
   # Devise's `POST /signup` endpoint, rendered as JSON.
   class RegistrationsController < Devise::RegistrationsController
     include RackSessionsFix
+    include AuthAttemptLimit
 
     respond_to :json
 

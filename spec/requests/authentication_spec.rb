@@ -84,6 +84,48 @@ RSpec.describe 'Authentication', type: :request do
     end
   end
 
+  describe 'attempt throttling' do
+    let!(:user) { create(:user, password: 'password123') }
+
+    it 'answers 429 once an IP exceeds the login limit, even with the right password' do
+      AuthAttemptLimit::ATTEMPTS.times do
+        post '/login', params: { user: { email: user.email, password: 'wrong' } }, as: :json
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      post '/login', params: { user: { email: user.email, password: 'password123' } }, as: :json
+
+      expect(response).to have_http_status(:too_many_requests)
+      expect(response.headers['Authorization']).to be_nil
+      expect(json_body['errors']).to eq([I18n.t('errors.too_many_attempts')])
+    end
+
+    it 'lets the client in again once the window has passed' do
+      AuthAttemptLimit::ATTEMPTS.times do
+        post '/login', params: { user: { email: user.email, password: 'wrong' } }, as: :json
+      end
+
+      travel(AuthAttemptLimit::WINDOW + 1.second) do
+        post '/login', params: { user: { email: user.email, password: 'password123' } }, as: :json
+      end
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it 'throttles signup separately from login' do
+      AuthAttemptLimit::ATTEMPTS.times do |n|
+        post '/signup', params: { user: { name: 'Bot', email: "bot#{n}@example.com", password: 'password123' } },
+                        as: :json
+      end
+      post '/signup', params: { user: { name: 'Bot', email: 'one-more@example.com', password: 'password123' } },
+                      as: :json
+      expect(response).to have_http_status(:too_many_requests)
+
+      post '/login', params: { user: { email: user.email, password: 'password123' } }, as: :json
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
   describe 'DELETE /logout without a session' do
     it 'reports that there is nothing to log out of' do
       delete '/logout'

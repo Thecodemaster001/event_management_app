@@ -8,6 +8,7 @@ module Users
   # `DELETE /logout` revokes it by rotating the user's `jti`.
   class SessionsController < Devise::SessionsController
     include RackSessionsFix
+    include AuthAttemptLimit
 
     respond_to :json
 
