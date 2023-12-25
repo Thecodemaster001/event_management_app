@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# spec/serializers/event_user_serializer_spec.rb
-
 require 'rails_helper'
 
 RSpec.describe EventUserSerializer do
@@ -13,7 +11,6 @@ RSpec.describe EventUserSerializer do
     expect(serialized_event_user[:data][:attributes]).to have_key(:id)
     expect(serialized_event_user[:data][:attributes]).to have_key(:user_id)
     expect(serialized_event_user[:data][:attributes]).to have_key(:event_id)
-    expect(serialized_event_user[:data][:relationships]).to have_key(:user)
-    expect(serialized_event_user[:data][:relationships]).to have_key(:event)
+    expect(serialized_event_user[:data][:relationships]).to be_blank
   end
 end

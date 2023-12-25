@@ -333,4 +333,31 @@ RSpec.describe 'Api::V1::Events', type: :request do
       expect(json_body.size).to eq(5)
     end
   end
+
+  # Every list endpoint renders a page of events, so the number of SQL
+  # statements per request must not grow with the page size.
+  describe 'query count' do
+    def sql_statements_during
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe('sql.active_record') do |*, payload|
+        statements << payload[:sql] unless payload[:name].in?(%w[SCHEMA TRANSACTION])
+      end
+      yield
+      statements
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    it 'is the same for a page of 2 events and a page of 20' do
+      create_list(:event_with_users, 20, organizer: user, users_count: 2)
+
+      sign_in user
+      small = sql_statements_during { get '/api/v1/events', params: { per_page: 2 } }
+      sign_in user
+      large = sql_statements_during { get '/api/v1/events', params: { per_page: 20 } }
+
+      expect(json_body.size).to eq(20)
+      expect(large.size).to eq(small.size)
+    end
+  end
 end

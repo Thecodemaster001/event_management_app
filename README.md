@@ -227,8 +227,10 @@ consumer's expense. They kept their names and got comments instead.
 
 **Responses are flat objects, not JSON:API envelopes.** The serializers are
 `jsonapi-serializer` classes, but the controllers render only
-`serializable_hash[:data][:attributes]`, the shape the client parses. One consequence
-shows up in `EventSerializer`: its `has_many :users` never reaches a response body.
+`serializable_hash[:data][:attributes]`, the shape the client parses. For the same
+reason the serializers declare no relationships: `EventSerializer` used to carry a
+`has_many :users` that never reached a response body but still cost one query per
+event on every list page.
 
 ## Out of scope
 

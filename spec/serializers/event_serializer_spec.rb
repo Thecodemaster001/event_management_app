@@ -14,6 +14,6 @@ RSpec.describe EventSerializer do
     expect(serialized_event[:data][:attributes]).to have_key(:date)
     expect(serialized_event[:data][:attributes]).to have_key(:location)
     expect(serialized_event[:data][:attributes]).to have_key(:organizer_id)
-    expect(serialized_event[:data][:relationships]).to have_key(:users)
+    expect(serialized_event[:data][:relationships]).to be_blank
   end
 end
