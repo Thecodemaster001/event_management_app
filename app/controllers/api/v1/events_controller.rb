@@ -79,11 +79,11 @@ module Api
       private
 
       def set_event
-        @event = Event.find(params[:id])
+        @event = Event.find(params.expect(:id))
       end
 
       def event_params
-        params.require(:event).permit(:name, :description, :date, :location)
+        params.expect(event: %i[name description date location])
       end
 
       def serialize_one(event)

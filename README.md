@@ -169,7 +169,6 @@ is literal command output with the generating command printed above it:
 - [`query-benchmark.txt`](docs/captured/query-benchmark.txt) — timings and `EXPLAIN ANALYZE` for `not_joined_by_user`, with the generating script beside it
 - [`mutation-check.txt`](docs/captured/mutation-check.txt) — the suite deliberately broken and repaired, to show it can fail
 - [`baseline-bug-probe.txt`](docs/captured/baseline-bug-probe.txt) — eight defects reproduced against an earlier checkout, before they were fixed
-- [`json-3-regression.txt`](docs/captured/json-3-regression.txt) — why the Gemfile pins `json ~> 2.7`, demonstrated rather than asserted
 
 ## Environment
 

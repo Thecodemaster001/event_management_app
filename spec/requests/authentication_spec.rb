@@ -25,7 +25,7 @@ RSpec.describe 'Authentication', type: :request do
     it 'returns an array of messages under "status" when invalid' do
       post '/signup', params: { user: { email: 'nope', password: 'x' } }, as: :json
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(json_body['status']).to be_an(Array)
       expect(json_body['status']).to be_present
     end

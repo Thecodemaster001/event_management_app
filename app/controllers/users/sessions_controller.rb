@@ -37,7 +37,9 @@ module Users
       }, status: :ok
     end
 
-    def respond_to_on_destroy
+    # Devise 5 passes the status it would use for a bodiless reply
+    # (`non_navigational_status:`); this API answers with a JSON body instead.
+    def respond_to_on_destroy(**)
       if @signed_out_user
         render json: { status: 200, message: 'Logged out successfully.' }, status: :ok
       else

@@ -4,7 +4,7 @@
 # for native gem extensions; the final stage carries only the runtime libraries,
 # the compiled bundle and the application.
 
-ARG RUBY_VERSION=3.2.2
+ARG RUBY_VERSION=3.4.12
 
 # ---------------------------------------------------------------------------
 # base -- shared by both stages

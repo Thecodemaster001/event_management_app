@@ -19,7 +19,7 @@ module Users
           data: UserSerializer.new(resource).serializable_hash[:data][:attributes]
         }
       else
-        render json: { status: resource.errors.full_messages }, status: :unprocessable_entity
+        render json: { status: resource.errors.full_messages }, status: :unprocessable_content
       end
     end
   end

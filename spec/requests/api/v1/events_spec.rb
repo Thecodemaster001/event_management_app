@@ -65,12 +65,20 @@ RSpec.describe 'Api::V1::Events', type: :request do
       expect(Event.last.organizer).to eq(user)
     end
 
-    it 'returns unprocessable_entity for invalid event data' do
+    it 'returns unprocessable_content for invalid event data' do
       sign_in user
       post '/api/v1/events', params: { event: { name: '' } }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(json_body['attributes_errors']).to include('name')
+    end
+
+    it 'returns 400 when "event" is a scalar instead of an object' do
+      sign_in user
+      post '/api/v1/events', params: { event: 'Rails Day' }, as: :json
+
+      expect(response).to have_http_status(:bad_request)
+      expect(json_body['errors']).to be_present
     end
 
     it 'returns unauthorized for an unauthenticated user' do
@@ -132,14 +140,14 @@ RSpec.describe 'Api::V1::Events', type: :request do
       expect(event.reload.name).to eq('Updated Name')
     end
 
-    it 'returns unprocessable_entity if the event name is too long' do
+    it 'returns unprocessable_content if the event name is too long' do
       event = create(:event, organizer: user)
 
       sign_in user
       put "/api/v1/events/#{event.id}",
           params: { event: { name: 'The Historical Development of the Heart from Its Formation' } }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(json_body['attributes_errors']).to include('name')
     end
 
@@ -220,7 +228,7 @@ RSpec.describe 'Api::V1::Events', type: :request do
       sign_in user
       post '/api/v1/events/add_user_to_events', params: { event_id: event.id }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(EventUser.count).to eq(1)
     end
 
