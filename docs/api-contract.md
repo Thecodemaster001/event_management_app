@@ -106,7 +106,7 @@ respect.
 | `POST .../add_user_to_events` by the organizer | 201 — the organizer joined their own event | 403 | The event never appears in the joinable list, so the row was unreachable |
 | Empty list responses | **204** with a JSON body, which Rack discards — clients received `""` | 200 `[]` | RFC 9110 forbids a body on 204 |
 | Validation errors on events | `{"name":["can't be blank"]}` | `{"attributes_errors":{"name":[…]}}` | One error envelope across the API |
-| All list endpoints | unbounded — 20,000 events meant 20,000 rows in one response | capped at 100, default 50 | See the Scalability section of the README |
+| All list endpoints | unbounded — 20,000 events meant 20,000 rows in one response | capped at 100, default 50 | See "Offset pagination" under Out of scope in the README |
 
 ### For the `event_management_FE` maintainer
 

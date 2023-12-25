@@ -1,6 +1,6 @@
 # Event Management API
 
-A Rails 7.1 API-only service for organising events and booking a place at someone
+A Rails 8.1 API-only service for organising events and booking a place at someone
 else's. No views, no assets, no HTML — every response is JSON. The consumer is the
 React client in the sibling repository `event_management_FE`, whose `package.json`
 describes itself as "React client for the event_management_app_BE Rails API".
@@ -9,7 +9,28 @@ bearer JWT handed back in the `Authorization` **response header** of `POST /logi
 
 ## Run it
 
-Ruby 3.2.2 (`.ruby-version`) and a PostgreSQL server.
+### With Docker Compose
+
+Docker is the only prerequisite. Compose builds the production image, starts
+PostgreSQL 16 next to it and prepares the database on first boot.
+
+```bash
+cp .env.example .env
+# fill in DEVISE_JWT_SECRET_KEY, SECRET_KEY_BASE (any long random strings, e.g.
+# `openssl rand -hex 64`), DATABASE_USERNAME=postgres and a DATABASE_PASSWORD
+docker compose up --build -d
+docker compose exec api bin/rails db:seed
+curl -s localhost:8690/up -o /dev/null -w '%{http_code}\n'    # 200
+```
+
+The API listens on `:8690` and PostgreSQL on `:8695` (change `API_HOST_PORT` /
+`DATABASE_HOST_PORT` in `.env` if those are taken). The image is multi-stage, runs as
+UID 1000 and healthchecks `/up`, which touches the database. `docker compose down -v`
+removes the stack and its data.
+
+### With a local Ruby
+
+Ruby 3.4.12 (`.ruby-version`) and a PostgreSQL server.
 
 ```bash
 bundle install
@@ -18,6 +39,8 @@ bin/rails db:create db:schema:load db:seed
 bin/rails server              # http://localhost:3000
 ```
 
+### Seed data and a first request
+
 `db:seed` is idempotent. It creates three users — `ada@example.com`,
 `grace@example.com`, `alan@example.com`, password `password123` — six events (one
 deliberately in the past, so the upcoming filter has something to exclude) and a few
@@ -25,10 +48,11 @@ bookings, so every list endpoint returns rows immediately. The token arrives in 
 *header*, so grab it from one and send it back in the other:
 
 ```bash
-TOKEN=$(curl -sD - -o/dev/null -X POST localhost:3000/login -H 'Content-Type: application/json' \
+API=localhost:8690            # or localhost:3000 for bin/rails server
+TOKEN=$(curl -sD - -o/dev/null -X POST $API/login -H 'Content-Type: application/json' \
   -d '{"user":{"email":"ada@example.com","password":"password123"}}' \
   | tr -d '\r' | awk 'tolower($1)=="authorization:"{print $2" "$3}')
-curl -s -H "Authorization: $TOKEN" localhost:3000/api/v1/events
+curl -s -H "Authorization: $TOKEN" $API/api/v1/events
 ```
 
 Every path, status code and body shape is in
@@ -134,11 +158,11 @@ both halves: its second example saves with `validate: false` and asserts
 [`docs/captured/api-session.txt`](docs/captured/api-session.txt):
 
 ```
-$ curl -s -i -X POST ".../add_user_to_events?event_id=4" -H "Authorization: $GRACE"
+$ curl -s -i -X POST -H "Authorization: $GRACE" "$API/api/v1/events/add_user_to_events?event_id=$NEW"
 HTTP/1.1 201 Created
-{"id":7,"user_id":2,"event_id":4}
+{"id":7,"user_id":2,"event_id":7}
 
-$ curl -s -i -X POST ".../add_user_to_events?event_id=4" -H "Authorization: $GRACE"
+$ curl -s -i -X POST -H "Authorization: $GRACE" "$API/api/v1/events/add_user_to_events?event_id=$NEW"
 HTTP/1.1 422 Unprocessable Content
 {"attributes_errors":{"user_id":["User can join the same event only once"]}}
 ```
@@ -160,15 +184,24 @@ predicates on their own.
 | `update?`, `destroy?` | the organizer only, otherwise 403 |
 | `join?` | any signed-in user who is *not* the organizer |
 
+Before any of that, `POST /login` and `POST /signup` are throttled per client IP:
+ten attempts in three minutes, then `429 {"errors":["Too many attempts. ..."]}`
+until the window passes (`app/controllers/concerns/auth_attempt_limit.rb`). The
+counters live in the API process's memory, which suits the single-process deployment
+here; several processes behind a load balancer would need a shared store.
+
 ## Evidence on disk
 
 No UI, so the evidence is request/response pairs. Everything under `docs/captured/`
 is literal command output with the generating command printed above it:
 
-- [`api-session.txt`](docs/captured/api-session.txt) — 21 curl exchanges against a booted server: health probe, signup, login, all eight event endpoints, the 403/404/400/422 envelopes, logout and token revocation, CORS headers
+- [`api-session.txt`](docs/captured/api-session.txt) — 25 curl exchanges against the Docker Compose stack in production mode: health probe, signup, login, all eight event endpoints, the 400/403/404/422/429 envelopes, CORS preflight, logout and token revocation, and the login throttle
 - [`query-benchmark.txt`](docs/captured/query-benchmark.txt) — timings and `EXPLAIN ANALYZE` for `not_joined_by_user`, with the generating script beside it
 - [`mutation-check.txt`](docs/captured/mutation-check.txt) — the suite deliberately broken and repaired, to show it can fail
 - [`baseline-bug-probe.txt`](docs/captured/baseline-bug-probe.txt) — eight defects reproduced against an earlier checkout, before they were fixed
+
+The last three were captured on the earlier Rails 7.1 build; the query and the
+behaviour they describe have not changed since.
 
 ## Environment
 
@@ -186,7 +219,7 @@ Nothing is read from source. `config/database.yml` and
 | `CORS_ORIGINS` | no | `*` | Comma-separated. Pin it to the client's origin in anything real |
 | `RAILS_MAX_THREADS` | no | `5` | Puma threads **and** the Active Record pool size |
 
-Four more optional ones are in `.env.example`: `TEST_DATABASE_NAME`, `PORT` (`3000`),
+Four more optional ones are listed, commented out, in `.env.example`: `TEST_DATABASE_NAME`, `PORT` (`3000`),
 `SEED_PASSWORD` (`password123`), and `PUMA_SOCKET_DIR`, which makes Puma bind a Unix
 socket there instead of a TCP port.
 
@@ -194,27 +227,25 @@ socket there instead of a TCP port.
 `X-Per-Page`. Without that expose list a browser cannot read the login token, while
 every curl test stays green.
 
-## Tests, lint, CI
+## Tests and lint
 
-`bundle exec rspec` and `bundle exec rubocop`. Last run on Ruby 3.2.2 against a local
-PostgreSQL: `122 examples, 0 failures` and `60 files inspected, no offenses detected`.
+`bundle exec rspec` and `bundle exec rubocop`. Last run on Ruby 3.4.12 / Rails 8.1.4.1
+against PostgreSQL 16: `127 examples, 0 failures` and
+`59 files inspected, no offenses detected`.
 
 The suite needs a real PostgreSQL — the schema enables `plpgsql` and
 `not_joined_by_user` is raw SQL, so SQLite is not a substitute; point it at a
-non-default instance with `DATABASE_HOST` / `DATABASE_PORT`. `.github/workflows/ci.yml`
-runs both against `postgres:16-alpine` on every push and pull request.
+non-default instance with `DATABASE_HOST` / `DATABASE_PORT` (and `DATABASE_USERNAME` /
+`DATABASE_PASSWORD` if it needs them). Without a local Ruby, the same run works in the
+official image against the Compose database:
 
-### Docker
-
-`docker compose up --build` puts the API on `:8690` and PostgreSQL on `:8695`, and
-needs `DEVISE_JWT_SECRET_KEY` and `SECRET_KEY_BASE` in `.env`. The image is
-multi-stage, runs as UID 1000 and healthchecks `/up` — none of which has been
-exercised. The repository's own build report records:
-
-> - Build verified: **NOT RUN — deferred, Docker off**
-> - Boot verified: **NOT RUN — deferred, Docker off**
-
-`docker compose config` parses cleanly. That is the whole of the verification.
+```bash
+docker compose up -d db
+docker run --rm --network "$(basename "$PWD" | tr '[:upper:]' '[:lower:]')_default" \
+  -v "$PWD":/app -w /app -e RAILS_ENV=test -e DATABASE_HOST=db \
+  -e DATABASE_USERNAME=postgres -e DATABASE_PASSWORD="$(grep ^DATABASE_PASSWORD .env | cut -d= -f2)" \
+  ruby:3.4.12 sh -c 'bundle install && bin/rails db:create db:schema:load && bundle exec rspec && bundle exec rubocop'
+```
 
 ## Two decisions worth explaining
 
@@ -249,6 +280,3 @@ event on every list page.
 - **`config/credentials.yml.enc` is committed without its `master.key`**, so nobody
   cloning this can decrypt it. Nothing reads from it — every secret comes from the
   environment — but deleting an encrypted file is a call for whoever holds the key.
-- **`devise-jwt` 0.11 calls `Rails.application.secrets`**, deprecated in Rails 7.1 and
-  removed in 7.2. The boot-time deprecation warning comes from the gem, not from this
-  code; upgrading Rails needs that gem to move first.
